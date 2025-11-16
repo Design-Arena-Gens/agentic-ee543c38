@@ -1,0 +1,184 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String             @id @default(cuid())
+  userCode             String             @unique
+  passwordHash         String
+  name                 String
+  status               String             @default("Hey there! I'm using PrivaT.")
+  privacy              PrivacySetting     @default(PUBLIC)
+  avatarUrl            String?
+  role                 Role               @default(USER)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  friendRequestsSent   Friend[]           @relation("Requester")
+  friendRequestsReceived Friend[]         @relation("Addressee")
+  groupsOwned          Group[]            @relation("GroupOwner")
+  groupMemberships     GroupMember[]
+  messagesSent         Message[]          @relation("MessagesSent")
+  messagesReceived     Message[]          @relation("MessagesReceived")
+  notifications        Notification[]
+  callSessionsInitiated CallSession[]     @relation("CallInitiator")
+  callSessionsReceived CallSession[]      @relation("CallRecipient")
+  reportsFiled         Report[]           @relation("ReportsFiled")
+  reportsAgainst       Report[]           @relation("ReportsTargetUser")
+  reportsReviewed      Report[]           @relation("ReportsReviewed")
+}
+
+model Friend {
+  id           String       @id @default(cuid())
+  requesterId  String
+  addresseeId  String
+  status       FriendStatus @default(PENDING)
+  createdAt    DateTime     @default(now())
+
+  requester User @relation("Requester", fields: [requesterId], references: [id])
+  addressee User @relation("Addressee", fields: [addresseeId], references: [id])
+
+  @@unique([requesterId, addresseeId])
+}
+
+model Group {
+  id        String     @id @default(cuid())
+  name      String
+  groupCode String     @unique
+  ownerId   String
+  createdAt DateTime   @default(now())
+
+  owner     User          @relation("GroupOwner", fields: [ownerId], references: [id])
+  members   GroupMember[]
+  messages  Message[]
+  callRooms CallSession[]
+  reports   Report[]
+}
+
+model GroupMember {
+  id       String    @id @default(cuid())
+  userId   String
+  groupId  String
+  role     GroupRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  group Group @relation(fields: [groupId], references: [id])
+
+  @@unique([userId, groupId])
+}
+
+model Message {
+  id               String      @id @default(cuid())
+  senderId         String
+  recipientUserId  String?
+  recipientGroupId String?
+  content          String?
+  fileName         String?
+  fileData         String?
+  messageType      MessageType @default(TEXT)
+  createdAt        DateTime    @default(now())
+
+  sender         User  @relation("MessagesSent", fields: [senderId], references: [id])
+  recipientUser  User? @relation("MessagesReceived", fields: [recipientUserId], references: [id])
+  recipientGroup Group? @relation(fields: [recipientGroupId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model CallSession {
+  id          String     @id @default(cuid())
+  sessionCode String     @unique
+  type        CallType
+  status      CallStatus @default(INITIATED)
+  initiatorId String
+  recipientId String?
+  groupId     String?
+  offer       String?
+  answer      String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  initiator User  @relation("CallInitiator", fields: [initiatorId], references: [id])
+  recipient User? @relation("CallRecipient", fields: [recipientId], references: [id])
+  group     Group? @relation(fields: [groupId], references: [id])
+}
+
+model Report {
+  id            String        @id @default(cuid())
+  reporterId    String
+  targetUserId  String?
+  targetGroupId String?
+  reason        String
+  status        ReportStatus  @default(PENDING)
+  reviewerId    String?
+  createdAt     DateTime      @default(now())
+  reviewedAt    DateTime?
+
+  reporter    User  @relation("ReportsFiled", fields: [reporterId], references: [id])
+  targetUser  User? @relation("ReportsTargetUser", fields: [targetUserId], references: [id])
+  targetGroup Group? @relation(fields: [targetGroupId], references: [id])
+  reviewer    User? @relation("ReportsReviewed", fields: [reviewerId], references: [id])
+}
+
+enum PrivacySetting {
+  PUBLIC
+  PRIVATE
+  FRIENDS_ONLY
+}
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+}
+
+enum GroupRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum CallType {
+  VOICE
+  VIDEO
+}
+
+enum CallStatus {
+  INITIATED
+  ACTIVE
+  ENDED
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  REJECTED
+}
